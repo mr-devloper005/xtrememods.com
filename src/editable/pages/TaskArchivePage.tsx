@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { ArrowUpRight, BriefcaseBusiness, ChevronDown, Download, FileText, Globe, MapPin, Phone, Search, Star, UserRound } from 'lucide-react'
+import { ArrowUpRight, BriefcaseBusiness, ChevronDown, Download, ExternalLink, FileText, Globe, MapPin, Phone, Search, Star, UserRound } from 'lucide-react'
 import { buildTaskMetadata } from '@/lib/seo'
 import { CATEGORY_OPTIONS, normalizeCategory } from '@/lib/categories'
 import { fetchPaginatedTaskPosts, buildPostUrl } from '@/lib/task-data'
@@ -9,6 +9,7 @@ import { taskPageMetadata } from '@/config/site.content'
 import { taskPageVoices } from '@/editable/content/task-pages.content'
 import { EditableSiteShell } from '@/editable/shell/EditableSiteShell'
 import { getTaskTheme, taskThemeStyle } from '@/editable/theme/task-themes'
+import { Ads } from '@/lib/ads'
 
 export const revalidate = 3
 
@@ -45,7 +46,11 @@ const getField = (post: SitePost, keys: string[]) => {
   }
   return ''
 }
-const cleanDomain = (value: string) => value.replace(/^https?:\/\//, '').replace(/\/$/, '')
+const cleanDomain = (value: string) => value.replace(/^https?:\/\//i, '').replace(/^www\./i, '').replace(/\/.*$/, '')
+const faviconFor = (url: string) => {
+  const domain = cleanDomain(url)
+  return domain ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=64` : ''
+}
 
 function pageHref(basePath: string, category: string, page: number) {
   const params = new URLSearchParams()
@@ -93,75 +98,135 @@ export function TaskArchiveView({ task, posts, pagination, category, basePath }:
   const label = taskConfig?.label || task
   const categoryLabel = category === 'all' ? 'All categories' : CATEGORY_OPTIONS.find((item) => item.slug === category)?.name || category
 
+  // For the bookmarks archive, surface a featured lead resource above the grid.
+  const isBookmark = task === 'sbm'
+  const featured = isBookmark && page === 1 && category === 'all' ? posts[0] : null
+  const gridPosts = featured ? posts.slice(1) : posts
+
   return (
     <EditableSiteShell>
       <main style={taskThemeStyle(task)} className="min-h-screen bg-[var(--tk-bg)] text-[var(--tk-text)]">
-        <header className="relative overflow-hidden border-b border-[var(--tk-line)]">
-          <div className="pointer-events-none absolute inset-x-0 -top-40 h-96 bg-[radial-gradient(60%_60%_at_50%_0%,var(--tk-glow),transparent_70%)]" />
-          <div className="relative mx-auto max-w-[var(--editable-container)] px-6 py-20 sm:py-28 lg:px-8">
-            <div className="flex items-center gap-3 text-[11px] font-medium uppercase tracking-[0.34em] text-[var(--tk-accent)]">
+        <header className="relative overflow-hidden bg-[var(--slot4-dark-bg)] text-white">
+          <div className="pointer-events-none absolute -right-32 -top-24 h-[420px] w-[420px] rounded-full bg-[radial-gradient(50%_50%_at_50%_50%,rgba(154,52,18,0.4),transparent_70%)]" />
+          <div className="relative mx-auto max-w-[var(--editable-container)] px-6 py-16 sm:py-20 lg:px-8">
+            <div className="flex items-center gap-3 text-[11px] font-semibold uppercase tracking-[0.3em] text-[var(--tk-accent)]">
               <span>{theme.kicker}</span>
-              <span className="h-1 w-1 rounded-full bg-[var(--tk-accent)] opacity-50" />
-              <span className="text-[var(--tk-muted)]">{label}</span>
+              <span className="h-1 w-1 rounded-full bg-[var(--tk-accent)] opacity-60" />
+              <span className="text-white/55">{label}</span>
             </div>
-            <h1 className="editable-display mt-6 max-w-3xl text-balance text-[2.5rem] font-semibold leading-[1.06] tracking-[-0.03em] sm:text-5xl lg:text-6xl">
+            <h1 className="editable-display mt-6 max-w-3xl text-balance text-[2.5rem] font-bold leading-[1.05] tracking-[-0.03em] sm:text-5xl lg:text-[3.5rem]">
               {voice?.headline || `Browse ${label}`}
             </h1>
-            <p className="mt-6 max-w-2xl text-lg leading-8 text-[var(--tk-muted)]">{voice?.description || theme.note}</p>
-            {voice?.chips?.length ? (
-              <div className="mt-8 flex flex-wrap gap-2.5">
-                {voice.chips.map((chip) => (
-                  <span key={chip} className="rounded-full border border-[var(--tk-line)] bg-[var(--tk-surface)] px-3.5 py-1.5 text-xs font-medium text-[var(--tk-muted)]">{chip}</span>
-                ))}
-              </div>
-            ) : null}
+            <p className="mt-5 max-w-2xl text-lg leading-8 text-white/70">{voice?.description || theme.note}</p>
 
-            <div className="mt-12 flex flex-col gap-4 border-t border-[var(--tk-line)] pt-6 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-sm text-[var(--tk-muted)]">
-                <span className="font-semibold text-[var(--tk-text)]">{posts.length}</span> {posts.length === 1 ? 'post' : 'posts'} · {categoryLabel}
-              </p>
-              <form action={basePath} className="flex items-center gap-2.5">
+            {/* Search + filter toolbar */}
+            <div className="mt-10 flex flex-col gap-3 sm:flex-row sm:items-center">
+              <form action="/search" className="flex flex-1 items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-1.5 backdrop-blur-sm transition focus-within:border-[var(--tk-accent)] sm:max-w-md">
+                <Search className="h-4 w-4 shrink-0 text-white/60" />
+                <input type="hidden" name="task" value={task} />
+                <input
+                  name="q"
+                  placeholder={`Search ${label.toLowerCase()}…`}
+                  className="min-w-0 flex-1 bg-transparent py-2 text-sm font-medium text-white outline-none placeholder:text-white/45"
+                />
+                <button className="rounded-full bg-[var(--tk-accent)] px-4 py-1.5 text-sm font-semibold text-[var(--tk-on-accent)] transition hover:opacity-90">Search</button>
+              </form>
+              <form action={basePath} className="flex items-center gap-2">
                 <div className="relative">
                   <select
                     name="category"
                     defaultValue={category}
-                    className="h-11 appearance-none rounded-full border border-[var(--tk-line)] bg-[var(--tk-surface)] pl-4 pr-10 text-sm font-medium text-[var(--tk-text)] outline-none transition focus:border-[var(--tk-accent)]"
+                    className="h-11 appearance-none rounded-full border border-white/15 bg-white/10 pl-4 pr-10 text-sm font-medium text-white outline-none backdrop-blur-sm transition focus:border-[var(--tk-accent)]"
                     aria-label={voice?.filterLabel || 'Filter category'}
                   >
-                    <option value="all">All categories</option>
-                    {CATEGORY_OPTIONS.map((item) => <option key={item.slug} value={item.slug}>{item.name}</option>)}
+                    <option className="text-[var(--tk-text)]" value="all">All categories</option>
+                    {CATEGORY_OPTIONS.map((item) => <option className="text-[var(--tk-text)]" key={item.slug} value={item.slug}>{item.name}</option>)}
                   </select>
-                  <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--tk-muted)]" />
+                  <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/60" />
                 </div>
-                <button className="inline-flex h-11 items-center rounded-full bg-[var(--tk-accent)] px-5 text-sm font-semibold text-[var(--tk-on-accent)] transition hover:opacity-90">Apply</button>
+                <button className="inline-flex h-11 items-center rounded-full border border-white/20 px-5 text-sm font-semibold text-white transition hover:bg-white/10">Filter</button>
               </form>
             </div>
+            <p className="mt-5 text-sm text-white/55">
+              <span className="font-semibold text-white">{posts.length}</span> {posts.length === 1 ? 'resource' : 'resources'} · {categoryLabel}
+            </p>
           </div>
         </header>
 
-        <section className="mx-auto max-w-[var(--editable-container)] px-6 py-16 sm:py-20 lg:px-8">
-          {posts.length ? (
-            <div className={taskGrid[task]}>
-              {posts.map((post, index) => <ArchivePostCard key={post.id || post.slug} post={post} task={task} basePath={basePath} index={index} />)}
+        <section className="mx-auto max-w-[var(--editable-container)] px-6 py-14 sm:py-16 lg:px-8">
+          {featured ? (
+            <div className="mb-10" data-reveal>
+              <FeaturedBookmark post={featured} href={`${basePath}/${featured.slug}`} />
             </div>
+          ) : null}
+
+          {posts.length ? (
+            <>
+              <div className={taskGrid[task]}>
+                {gridPosts.map((post, index) => <ArchivePostCard key={post.id || post.slug} post={post} task={task} basePath={basePath} index={index} />)}
+              </div>
+
+              <div className="mt-12">
+                <Ads slot="in-feed" showLabel className="mx-auto w-full" />
+              </div>
+            </>
           ) : (
             <div className="mx-auto max-w-xl rounded-[var(--tk-radius)] border border-dashed border-[var(--tk-line)] bg-[var(--tk-surface)] px-8 py-16 text-center">
               <Search className="mx-auto h-7 w-7 text-[var(--tk-muted)]" />
               <h2 className="editable-display mt-5 text-2xl font-semibold tracking-[-0.02em]">Nothing here yet</h2>
-              <p className="mt-2 text-sm leading-6 text-[var(--tk-muted)]">Try another category, or check back after new {label.toLowerCase()} are published.</p>
+              <p className="mt-2 text-sm leading-6 text-[var(--tk-muted)]">Try another category, or check back after new {label.toLowerCase()} are added.</p>
             </div>
           )}
 
           {posts.length ? (
-            <nav className="mt-16 flex items-center justify-center gap-3 text-sm">
-              {pagination.hasPrevPage ? <Link href={pageHref(basePath, category, page - 1)} className="rounded-full border border-[var(--tk-line)] px-5 py-2.5 font-medium transition hover:border-[var(--tk-accent)]">Previous</Link> : null}
+            <nav className="mt-14 flex items-center justify-center gap-3 text-sm">
+              {pagination.hasPrevPage ? <Link href={pageHref(basePath, category, page - 1)} className="rounded-full border border-[var(--tk-line)] px-5 py-2.5 font-medium transition hover:border-[var(--tk-accent)] hover:text-[var(--tk-accent)]">Previous</Link> : null}
               <span className="rounded-full border border-[var(--tk-line)] bg-[var(--tk-surface)] px-5 py-2.5 font-medium text-[var(--tk-muted)]">Page {page} of {pagination.totalPages || 1}</span>
-              {pagination.hasNextPage ? <Link href={pageHref(basePath, category, page + 1)} className="rounded-full border border-[var(--tk-line)] px-5 py-2.5 font-medium transition hover:border-[var(--tk-accent)]">Next</Link> : null}
+              {pagination.hasNextPage ? <Link href={pageHref(basePath, category, page + 1)} className="rounded-full border border-[var(--tk-line)] px-5 py-2.5 font-medium transition hover:border-[var(--tk-accent)] hover:text-[var(--tk-accent)]">Next</Link> : null}
             </nav>
           ) : null}
         </section>
       </main>
     </EditableSiteShell>
+  )
+}
+
+// Featured lead resource for the bookmarks archive — large, image-led, with a
+// prominent open action. Curator/profile links are intentionally omitted.
+function FeaturedBookmark({ post, href }: { post: SitePost; href: string }) {
+  const website = getField(post, ['website', 'url', 'link', 'source'])
+  const domain = website ? cleanDomain(website) : ''
+  const favicon = website ? faviconFor(website) : ''
+  const category = getCategory(post, 'Featured')
+  const image = getImage(post)
+  const hasImage = image && !image.includes('placeholder')
+
+  return (
+    <Link href={href} className="group grid overflow-hidden rounded-[var(--tk-radius)] border border-[var(--tk-line)] bg-[var(--tk-surface)] shadow-[0_24px_60px_-36px_rgba(16,24,32,0.45)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_30px_70px_-36px_rgba(16,24,32,0.5)] lg:grid-cols-[1.1fr_1fr]">
+      <div className="relative min-h-[260px] overflow-hidden bg-[var(--tk-raised)]">
+        {hasImage ? (
+          <img src={image} alt="" className="absolute inset-0 h-full w-full object-cover transition duration-500 group-hover:scale-105" />
+        ) : (
+          <div className="absolute inset-0 bg-[radial-gradient(70%_70%_at_30%_20%,var(--tk-accent-soft),transparent_70%)]" />
+        )}
+        <span className="absolute left-5 top-5 inline-flex items-center gap-2 rounded-full bg-[var(--tk-surface)]/95 px-3 py-1.5 text-xs font-semibold text-[var(--tk-text)] shadow-sm">
+          <Star className="h-3.5 w-3.5 fill-[var(--tk-accent)] text-[var(--tk-accent)]" /> Featured
+        </span>
+      </div>
+      <div className="flex flex-col justify-center p-7 sm:p-9">
+        <div className="flex items-center gap-2.5">
+          <span className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-lg bg-[var(--tk-accent-soft)] text-[var(--tk-accent)]">
+            {favicon ? <img src={favicon} alt="" className="h-4 w-4" /> : <Globe className="h-4 w-4" />}
+          </span>
+          <span className="truncate text-sm font-semibold text-[var(--tk-muted)]">{domain || category}</span>
+        </div>
+        <h2 className="editable-display mt-4 text-3xl font-bold leading-[1.1] tracking-[-0.02em] sm:text-4xl">{post.title}</h2>
+        <p className="mt-3 line-clamp-3 text-[15px] leading-7 text-[var(--tk-muted)]">{getSummary(post)}</p>
+        <span className="mt-6 inline-flex w-fit items-center gap-2 rounded-full bg-[var(--tk-accent)] px-5 py-2.5 text-sm font-semibold text-[var(--tk-on-accent)] transition group-hover:bg-[var(--slot4-accent-strong)]">
+          Open resource <ExternalLink className="h-4 w-4" />
+        </span>
+      </div>
+    </Link>
   )
 }
 
@@ -304,17 +369,45 @@ function ImageArchiveCard({ post, href, index }: { post: SitePost; href: string;
 }
 
 function BookmarkArchiveCard({ post, href, index }: { post: SitePost; href: string; index: number }) {
-  const website = getField(post, ['website', 'url', 'link'])
+  const website = getField(post, ['website', 'url', 'link', 'source'])
+  const domain = website ? cleanDomain(website) : ''
+  const favicon = website ? faviconFor(website) : ''
+  const category = getCategory(post, '')
+  const image = getImages(post)[0]
+  const hasImage = image && !image.includes('placeholder')
+  const tags = (post.tags || []).filter(Boolean).slice(0, 3)
+
   return (
-    <Link href={href} className={`${cardBase} flex gap-4 p-6`}>
-      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[var(--tk-accent-soft)] text-[var(--tk-accent)]">
-        <Globe className="h-5 w-5" />
-      </div>
-      <div className="min-w-0 flex-1">
-        <span className="text-[11px] font-medium uppercase tracking-[0.2em] text-[var(--tk-muted)]">Saved · {String(index + 1).padStart(2, '0')}</span>
-        <h2 className="editable-display mt-1.5 text-lg font-semibold leading-snug tracking-[-0.02em]">{post.title}</h2>
-        <p className="mt-2 line-clamp-2 text-sm leading-6 text-[var(--tk-muted)]">{getSummary(post)}</p>
-        {website ? <p className="mt-3 truncate text-xs font-medium text-[var(--tk-accent)]">{cleanDomain(website)}</p> : null}
+    <Link
+      href={href}
+      data-reveal
+      style={{ '--reveal-delay': `${(index % 3) * 70}ms` } as React.CSSProperties}
+      className={`${cardBase} flex flex-col overflow-hidden`}
+    >
+      {hasImage ? (
+        <div className="relative aspect-[16/9] overflow-hidden bg-[var(--tk-raised)]">
+          <img src={image} alt="" className="absolute inset-0 h-full w-full object-cover transition duration-500 group-hover:scale-[1.05]" />
+        </div>
+      ) : null}
+      <div className="flex flex-1 flex-col p-6">
+        <div className="flex items-center gap-2.5">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-[var(--tk-accent-soft)] text-[var(--tk-accent)]">
+            {favicon ? <img src={favicon} alt="" className="h-4 w-4" /> : <Globe className="h-4 w-4" />}
+          </span>
+          <span className="min-w-0 flex-1 truncate text-xs font-semibold text-[var(--tk-muted)]">{domain || category || 'Saved resource'}</span>
+        </div>
+        <h2 className="editable-display mt-3 line-clamp-2 text-lg font-bold leading-snug tracking-[-0.02em]">{post.title}</h2>
+        <p className="mt-2 line-clamp-2 flex-1 text-sm leading-6 text-[var(--tk-muted)]">{getSummary(post)}</p>
+        {tags.length ? (
+          <div className="mt-4 flex flex-wrap gap-1.5">
+            {tags.map((tag) => (
+              <span key={tag} className="rounded-full bg-[var(--tk-raised)] px-2.5 py-1 text-[11px] font-medium text-[var(--tk-muted)]">#{tag}</span>
+            ))}
+          </div>
+        ) : null}
+        <span className="mt-4 inline-flex items-center gap-1.5 text-[13px] font-semibold text-[var(--tk-accent)]">
+          Open resource <ArrowUpRight className="h-4 w-4 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+        </span>
       </div>
     </Link>
   )

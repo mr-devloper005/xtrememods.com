@@ -25,12 +25,14 @@ body {
 }
 
 .editable-site-root {
-  /* Yelp-style clean sans, used for both display and body. */
-  --editable-font-display: 'Inter', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif;
+  /* Premium editorial pairing: Fraunces serif display + Inter body. */
+  --editable-font-display: 'Fraunces', 'Plus Jakarta Sans', Georgia, 'Times New Roman', serif;
   --editable-font-body: 'Inter', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif;
   /* Premium easing curve used across every hover + transition. */
   --ease-premium: cubic-bezier(0.22, 1, 0.36, 1);
   font-family: var(--editable-font-body);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 /*
@@ -77,13 +79,89 @@ body {
   }
 }
 
+/*
+  Scroll-reveal (fade + slide up) for sections and cards.
+
+  FAIL-SAFE BY DESIGN: elements tagged `data-reveal` are fully visible by
+  default. The reveal animation only attaches when the browser supports
+  scroll-driven animations (`animation-timeline: view()`), so if JS is off,
+  hydration is interrupted, or the feature is unsupported, content always
+  shows. Reduced-motion users opt out entirely. Stagger via `--reveal-delay`.
+*/
+@media (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: view()) {
+    .editable-site-root [data-reveal] {
+      animation: editable-reveal both;
+      animation-timeline: view();
+      animation-range: entry 0% cover 26%;
+    }
+  }
+}
+
+@keyframes editable-reveal {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 28px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Infinite marquee (logo/source strip + footer gallery). Pauses on hover and
+   for reduced-motion users (content stays visible either way). */
+@keyframes editable-marquee {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(-50%, 0, 0); }
+}
+.editable-marquee-track {
+  display: flex;
+  width: max-content;
+  animation: editable-marquee 38s linear infinite;
+}
+.editable-marquee:hover .editable-marquee-track {
+  animation-play-state: paused;
+}
+@media (prefers-reduced-motion: reduce) {
+  .editable-marquee-track {
+    animation: none;
+  }
+}
+
+/* Animated nav underline for active/hover states. */
+.editable-navlink {
+  position: relative;
+}
+.editable-navlink::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 100%;
+  bottom: -2px;
+  height: 2px;
+  background: var(--slot4-accent);
+  transition: right 0.35s var(--ease-premium);
+}
+.editable-navlink:hover::after,
+.editable-navlink[data-active='true']::after {
+  right: 0;
+}
+
+/* Serif display reserved for large headings + opt-in .editable-display, so card
+   titles (h3/h4) stay on the crisp sans for legibility. */
 .editable-site-root h1,
 .editable-site-root h2,
-.editable-site-root h3,
-.editable-site-root h4,
 .editable-display {
   font-family: var(--editable-font-display);
-  letter-spacing: -0.02em;
+  font-optical-sizing: auto;
+  letter-spacing: -0.015em;
+}
+
+.editable-site-root h3,
+.editable-site-root h4 {
+  font-family: var(--editable-font-body);
+  letter-spacing: -0.01em;
 }
 
 .editable-site-root p,
